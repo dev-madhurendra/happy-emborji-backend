@@ -36,6 +36,14 @@ const ProductSchema = new mongoose.Schema({
 });
 const Product = mongoose.model("Product", ProductSchema);
 
+const __dirname = path.resolve();
+app.use(express.static(path.join(__dirname, "dist"))); // your build folder
+
+// ✅ Catch-all route for React Router
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "dist", "index.html"));
+});
+
 // Upload endpoint
 app.post("/api/addProduct", upload.fields([
   { name: "image", maxCount: 1 },     // main image
