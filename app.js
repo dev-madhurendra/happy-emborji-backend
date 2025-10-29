@@ -21,10 +21,9 @@ const __dirname = path.dirname(__filename);
 connectDB();
 
 app.use(express.static(path.join(__dirname, "dist")));
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
-
 
 // Cloudinary config
 cloudinary.config({
@@ -136,4 +135,4 @@ app.get("/api/categories", async (req, res) => {
 });
 
 
-app.listen(`${PORT}`, () => console.log("API running on port 3000"));
+app.listen(`${process.env.PORT}`, () => console.log("API running on port 3000"));
