@@ -1,4 +1,9 @@
 {
+  "type": "module",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
   "dependencies": {
     "cloudinary": "^2.8.0",
     "cors": "^2.8.5",
