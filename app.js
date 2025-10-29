@@ -5,25 +5,14 @@ import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import connectDB from "./db.js";
 import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
 
-
+dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
-dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // MongoDB setup
 connectDB();
-
-app.use(express.static(path.join(__dirname, "dist")));
-app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
-});
 
 // Cloudinary config
 cloudinary.config({
@@ -48,59 +37,58 @@ const ProductSchema = new mongoose.Schema({
 const Product = mongoose.model("Product", ProductSchema);
 
 // Upload endpoint
-app.post("/api/addProduct", upload.fields([
-  { name: "image", maxCount: 1 },     // main image
-  { name: "images", maxCount: 5 }     // up to 5 additional images
-]), async (req, res) => {
-  try {
-    const uploadToCloudinary = (fileBuffer) => {
-      return new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: "happy-embroji" },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result.secure_url);
-          }
-        );
-        uploadStream.end(fileBuffer);
+app.post(
+  "/api/addProduct",
+  upload.fields([
+    { name: "image", maxCount: 1 }, // main image
+    { name: "images", maxCount: 5 }, // up to 5 additional images
+  ]),
+  async (req, res) => {
+    try {
+      const uploadToCloudinary = (fileBuffer) =>
+        new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            { folder: "happy-embroji" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result.secure_url);
+            }
+          );
+          uploadStream.end(fileBuffer);
+        });
+
+      const mainImage = req.files?.image?.[0];
+      const mainImageUrl = mainImage
+        ? await uploadToCloudinary(mainImage.buffer)
+        : null;
+
+      const additionalImages = req.files?.images || [];
+      const additionalImageUrls = await Promise.all(
+        additionalImages.map((img) => uploadToCloudinary(img.buffer))
+      );
+
+      const product = new Product({
+        name: req.body.name,
+        price: req.body.price,
+        category: req.body.category,
+        tags: req.body.tags.split(",").map((tag) => tag.trim()),
+        image: mainImageUrl,
+        images: additionalImageUrls,
       });
-    };
 
-    // Upload the main image
-    const mainImage = req.files?.image?.[0];
-    const mainImageUrl = mainImage
-      ? await uploadToCloudinary(mainImage.buffer)
-      : null;
-
-    // Upload additional images (if any)
-    const additionalImages = req.files?.images || [];
-    const additionalImageUrls = await Promise.all(
-      additionalImages.map((img) => uploadToCloudinary(img.buffer))
-    );
-
-    // Save to MongoDB
-    const product = new Product({
-      name: req.body.name,
-      price: req.body.price,
-      category: req.body.category,
-      tags: req.body.tags.split(",").map((tag) => tag.trim()),
-      image: mainImageUrl,
-      images: additionalImageUrls,
-    });
-
-    await product.save();
-
-    res.status(201).json({ message: "Product added successfully", product });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+      await product.save();
+      res.status(201).json({ message: "Product added successfully", product });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 // Get all products
 app.get("/api/products", async (req, res) => {
   try {
-    const products = await Product.find().sort({ _id: -1 }); // newest first
+    const products = await Product.find().sort({ _id: -1 });
     res.json(products);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -115,17 +103,16 @@ app.get("/api/categories", async (req, res) => {
         $group: {
           _id: "$category",
           sampleImage: { $first: "$image" },
-          count: { $sum: 1 }
-        }
+          count: { $sum: 1 },
+        },
       },
-      { $sort: { _id: 1 } }
+      { $sort: { _id: 1 } },
     ]);
 
-    // Optional: rename _id -> category for cleaner response
-    const formatted = categories.map(cat => ({
+    const formatted = categories.map((cat) => ({
       category: cat._id,
       image: cat.sampleImage,
-      count: cat.count
+      count: cat.count,
     }));
 
     res.json(formatted);
@@ -134,5 +121,10 @@ app.get("/api/categories", async (req, res) => {
   }
 });
 
+// ✅ Only a simple root endpoint for health checks
+app.get("/", (req, res) => {
+  res.send("Backend API is running 🚀");
+});
 
-app.listen(`${process.env.PORT}`, () => console.log("API running on port 3000"));
+const PORT = process.env.PORT || 8081;
+app.listen(PORT, () => console.log(`✅ API running on port ${PORT}`));
