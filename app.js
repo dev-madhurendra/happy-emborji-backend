@@ -145,12 +145,35 @@ app.delete("/api/products/:id", async (req, res) => {
 ============================================================ */
 app.get("/api/products", async (req, res) => {
   try {
-    const products = await Product.find().sort({ _id: -1 });
-    res.json(products);
+    // Parse query params with default values
+    const page = parseInt(req.query.page) || 1;       // Default page = 1
+    const limit = parseInt(req.query.limit) || 10;    // Default limit = 10
+
+    // Calculate skip value
+    const skip = (page - 1) * limit;
+
+    // Fetch paginated data
+    const products = await Product.find()
+      .sort({ _id: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Count total documents
+    const total = await Product.countDocuments();
+
+    // Return paginated response
+    res.json({
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      limit,
+      products,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 /* ============================================================
    🗂️ Get Categories (cached)
