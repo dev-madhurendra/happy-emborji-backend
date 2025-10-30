@@ -5,6 +5,7 @@ import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import connectDB from "./db.js";
 import dotenv from "dotenv";
+import NodeCache from "node-cache";
 
 dotenv.config();
 const app = express();
@@ -14,14 +15,17 @@ app.use(express.json());
 // MongoDB setup
 connectDB();
 
-// Cloudinary config
+// Cache instance
+const cache = new NodeCache({ stdTTL: 600 }); // cache for 10 min (optional)
+
+// Cloudinary setup
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
   api_key: process.env.CLOUD_API_KEY,
   api_secret: process.env.CLOUD_API_SECRET,
 });
 
-// Multer setup for file upload
+// Multer setup
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
@@ -36,12 +40,40 @@ const ProductSchema = new mongoose.Schema({
 });
 const Product = mongoose.model("Product", ProductSchema);
 
-// Upload endpoint
+/* ============================================================
+   🔥 Utility: Rebuild and cache categories
+============================================================ */
+async function refreshCategoriesCache() {
+  const categories = await Product.aggregate([
+    {
+      $group: {
+        _id: "$category",
+        sampleImage: { $first: "$image" },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  const formatted = categories.map((cat) => ({
+    category: cat._id,
+    image: cat.sampleImage,
+    count: cat.count,
+  }));
+
+  cache.set("categories", formatted);
+  console.log("♻️ Categories cache refreshed");
+  return formatted;
+}
+
+/* ============================================================
+   📦 Add Product
+============================================================ */
 app.post(
   "/api/addProduct",
   upload.fields([
-    { name: "image", maxCount: 1 }, // main image
-    { name: "images", maxCount: 5 }, // up to 5 additional images
+    { name: "image", maxCount: 1 },
+    { name: "images", maxCount: 5 },
   ]),
   async (req, res) => {
     try {
@@ -57,6 +89,7 @@ app.post(
           uploadStream.end(fileBuffer);
         });
 
+      // Upload main + additional images
       const mainImage = req.files?.image?.[0];
       const mainImageUrl = mainImage
         ? await uploadToCloudinary(mainImage.buffer)
@@ -77,6 +110,11 @@ app.post(
       });
 
       await product.save();
+
+      // Invalidate cache after product change
+      cache.del("categories");
+      console.log("🧹 Cache invalidated after new product");
+
       res.status(201).json({ message: "Product added successfully", product });
     } catch (err) {
       console.error(err);
@@ -85,7 +123,26 @@ app.post(
   }
 );
 
-// Get all products
+/* ============================================================
+   🗑️ Delete Product
+============================================================ */
+app.delete("/api/products/:id", async (req, res) => {
+  try {
+    const deleted = await Product.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ error: "Product not found" });
+
+    cache.del("categories");
+    console.log("🧹 Cache invalidated after deletion");
+
+    res.json({ message: "Product deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ============================================================
+   🧾 Get All Products
+============================================================ */
 app.get("/api/products", async (req, res) => {
   try {
     const products = await Product.find().sort({ _id: -1 });
@@ -95,33 +152,27 @@ app.get("/api/products", async (req, res) => {
   }
 });
 
-// Get all unique categories with one sample image each
+/* ============================================================
+   🗂️ Get Categories (cached)
+============================================================ */
 app.get("/api/categories", async (req, res) => {
   try {
-    const categories = await Product.aggregate([
-      {
-        $group: {
-          _id: "$category",
-          sampleImage: { $first: "$image" },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+    const cached = cache.get("categories");
+    if (cached) {
+      console.log("✅ Served categories from cache");
+      return res.json(cached);
+    }
 
-    const formatted = categories.map((cat) => ({
-      category: cat._id,
-      image: cat.sampleImage,
-      count: cat.count,
-    }));
-
-    res.json(formatted);
+    const fresh = await refreshCategoriesCache();
+    res.json(fresh);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ Only a simple root endpoint for health checks
+/* ============================================================
+   🩺 Root Health Endpoint
+============================================================ */
 app.get("/", (req, res) => {
   res.send("Backend API is running 🚀");
 });
