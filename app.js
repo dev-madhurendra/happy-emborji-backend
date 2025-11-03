@@ -34,7 +34,7 @@ const ProductSchema = new mongoose.Schema({
   name: String,
   price: Number,
   category: String,
-  tags: [String],
+  tag: String,
   image: String,
   images: [String],
 });
@@ -104,7 +104,7 @@ app.post(
         name: req.body.name,
         price: req.body.price,
         category: req.body.category,
-        tags: req.body.tags.split(",").map((tag) => tag.trim()),
+        tag: req.body.tag,
         image: mainImageUrl,
         images: additionalImageUrls,
       });
