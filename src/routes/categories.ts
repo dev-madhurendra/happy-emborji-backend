@@ -1,7 +1,6 @@
 import { FastifyPluginAsync } from "fastify";
 import NodeCache from "node-cache";
 import { Product } from "../models/product";
-import { verifyAdmin } from "../middleware/auth";
 
 const cache = new NodeCache({ stdTTL: 600 });
 
@@ -12,7 +11,13 @@ const categoryRoutes: FastifyPluginAsync = async (fastify) => {
       if (cached) return reply.send(cached);
 
       const categories = await Product.aggregate([
-        { $group: { _id: "$category", sampleImage: { $first: "$image" }, count: { $sum: 1 } } },
+        {
+          $group: {
+            _id: "$category",
+            sampleImage: { $first: "$image" },
+            count: { $sum: 1 },
+          },
+        },
         { $sort: { _id: 1 } },
       ]);
 
@@ -27,6 +32,36 @@ const categoryRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err: any) {
       reply.code(500).send({ error: err.message });
     }
+  });
+
+  fastify.get("/categories/:category/products", async (req, reply) => {
+    const { category } = req.params as { category: string };
+    const { page = "1", limit = "10" } = req.query as {
+      page?: string;
+      limit?: string;
+    };
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.max(1, Math.min(50, parseInt(limit)));
+
+    const totalProducts = await Product.countDocuments({
+      category: new RegExp(`^${category}$`, "i"),
+    });
+    const totalPages = Math.ceil(totalProducts / limitNum);
+
+    const products = await Product.find({
+      category: new RegExp(`^${category}$`, "i"),
+    })
+      .sort({ _id: -1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
+
+    reply.send({
+      category,
+      page: pageNum,
+      totalPages,
+      totalProducts,
+      products,
+    });
   });
 };
 
