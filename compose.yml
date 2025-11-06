@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: happy-emborji-backend:latest
+    ports:
+      - "8081:8081"
+    env_file:
+      - .env
+    # environment:
+    #   # default MONGO_URI for local compose networking
+    #   - MONGO_URI=mongodb://mongo:27017/happy-emborji
+    # depends_on:
+    #   - mongo
+    restart: unless-stopped
+
+  # mongo:
+  #   image: mongo:6.0
+  #   restart: unless-stopped
+  #   volumes:
+  #     - mongo-data:/data/db
+  #   ports:
+  #     - "27017:27017"
+
+volumes:
+  mongo-data:
