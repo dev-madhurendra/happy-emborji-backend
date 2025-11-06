@@ -21,6 +21,8 @@ services:
     # depends_on:
     #   - mongo
     restart: unless-stopped
+    networks:
+      - proxy-network
 
   # mongo:
   #   image: mongo:6.0
@@ -32,3 +34,7 @@ services:
 
 volumes:
   mongo-data:
+
+networks:
+  proxy-network:
+    external: true # This tells Docker to use an existing network instead of creating a new one
