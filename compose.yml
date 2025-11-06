@@ -6,8 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     image: happy-emborji-backend:latest
-    # ports:
-    #   - "8081:8081"
+    ports:
+      - "8021:8021"
     env_file:
       - .env
     labels:
