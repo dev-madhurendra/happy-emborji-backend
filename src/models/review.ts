@@ -1,14 +1,14 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IReview extends Document {
-  type: "chat" | "text"; 
-  platform?: "whatsapp" | "instagram"; 
-  authorName?: string; 
-  rating?: number; 
-  message: string; 
-  imageUrl?: string; 
+  type: "chat" | "text";
+  platform?: "whatsapp" | "instagram";
+  authorName?: string;
+  rating?: number;
+  message: string;
+  imageUrl?: string;
   createdAt: Date;
-  productId?: mongoose.Types.ObjectId;
+  //   productId?: mongoose.Types.ObjectId;
 }
 
 const ReviewSchema = new Schema<IReview>(
@@ -39,13 +39,12 @@ const ReviewSchema = new Schema<IReview>(
     imageUrl: {
       type: String,
     },
-    productId: {
-      type: Schema.Types.ObjectId,
-      ref: "Product",
-    },
+    // productId: {
+    //   type: Schema.Types.ObjectId,
+    //   ref: "Product",
+    // },
   },
   { timestamps: true }
 );
 
-
-export const Review = mongoose.model<IReview>("Product", ReviewSchema);
+export const Review = mongoose.model<IReview>("Review", ReviewSchema);

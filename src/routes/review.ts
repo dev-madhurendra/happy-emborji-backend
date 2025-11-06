@@ -1,7 +1,6 @@
 import { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { Review } from "../models/review";
 import { verifyAdmin } from "../middleware/auth";
-import mongoose from "mongoose";
 
 const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   fastify.post("/reviews", { preHandler: verifyAdmin }, async (req, reply) => {
@@ -16,10 +15,39 @@ const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
   fastify.get("/reviews", async (req, reply) => {
     try {
-      const { productId } = req.query as { productId?: string };
+      const {
+        productId,
+        page = "1",
+        limit = "10",
+      } = req.query as {
+        productId?: string;
+        page?: string;
+        limit?: string;
+      };
+
+      const pageNum = Math.max(1, parseInt(page));
+      const limitNum = Math.max(1, Math.min(50, parseInt(limit)));
+      const skip = (pageNum - 1) * limitNum;
+
       const filter = productId ? { productId } : {};
-      const reviews = await Review.find(filter).sort({ createdAt: -1 });
-      reply.send(reviews);
+
+      const [reviews, totalReviews] = await Promise.all([
+        Review.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum),
+        Review.countDocuments(filter),
+      ]);
+
+      const totalPages = Math.ceil(totalReviews / limitNum);
+
+      reply.send({
+        reviews,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          totalReviews,
+          totalPages,
+          hasNextPage: pageNum < totalPages,
+        },
+      });
     } catch (err: any) {
       reply.code(500).send({ error: err.message });
     }
@@ -50,14 +78,14 @@ const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
           rating: number;
           message: string;
           imageUrl: string;
-          productId: mongoose.Types.ObjectId;
+          //   productId: mongoose.Types.ObjectId;
         }>;
 
         const body = req.body as ReviewUpdate;
 
         const updated = await Review.findByIdAndUpdate(id, body, {
           new: true,
-          runValidators: true, 
+          runValidators: true,
         });
 
         if (!updated) {
