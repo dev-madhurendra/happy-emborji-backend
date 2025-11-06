@@ -6,13 +6,13 @@ services:
       context: .
       dockerfile: Dockerfile
     image: happy-emborji-backend:latest
-    ports:
-      - "8021:8021"
+    # ports:
+    #   - "8021:8021"
     env_file:
       - .env
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`happy_backend.dev.aritraghorai.in`)"
+      - "traefik.http.routers.backend.rule=Host(`happy-backend.dev.aritraghorai.in`)"
       - "traefik.http.services.backend.loadbalancer.server.port=8021"
     # environment:
     #   # default MONGO_URI for local compose networking
