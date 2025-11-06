@@ -15,7 +15,7 @@ RUN bun install
 
 # build TypeScript to /app/dist using the project build script
 
-EXPOSE 8081
+EXPOSE 8021 
 
 # Use Bun to execute the compiled JS directly
 CMD ["bun", "run","src/app.ts"]
