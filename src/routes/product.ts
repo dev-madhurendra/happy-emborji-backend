@@ -66,22 +66,50 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
   fastify.get("/products", async (req, reply) => {
     try {
-      const page = Number((req.query as any).page || 1);
-      const limit = Number((req.query as any).limit || 10);
-      const skip = (page - 1) * limit;
+      const {
+        tag,
+        category,
+        minPrice,
+        maxPrice,
+        page = "1",
+        limit = "10",
+      } = req.query as {
+        tag?: string;
+        category?: string;
+        minPrice?: string;
+        maxPrice?: string;
+        page?: string;
+        limit?: string;
+      };
 
-      const products = await Product.find()
+      const pageNum = Math.max(1, parseInt(page));
+      const limitNum = Math.max(1, Math.min(50, parseInt(limit)));
+      const skip = (pageNum - 1) * limitNum;
+
+      const filters: any = {};
+
+      if (category) filters.category = new RegExp(`^${category}$`, "i");
+      if (tag) filters.tag = new RegExp(`^${tag}$`, "i");
+
+      if (!isNaN(Number(minPrice)) && minPrice !== "")
+        filters.price = { ...filters.price, $gte: Number(minPrice) };
+      if (!isNaN(Number(maxPrice)) && maxPrice !== "")
+        filters.price = { ...filters.price, $lte: Number(maxPrice) };
+
+      console.log("Filters applied:", filters);
+
+      const total = await Product.countDocuments(filters);
+      const products = await Product.find(filters)
         .sort({ _id: -1 })
         .skip(skip)
-        .limit(limit);
-
-      const total = await Product.countDocuments();
+        .limit(limitNum);
 
       reply.send({
         total,
-        page,
-        totalPages: Math.ceil(total / limit),
-        limit,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+        limit: limitNum,
+        filters,
         products,
       });
     } catch (err: any) {

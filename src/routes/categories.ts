@@ -8,6 +8,7 @@ const categoryRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/categories", async (req, reply) => {
     try {
       const cached = cache.get("categories");
+        
       if (cached) return reply.send(cached);
 
       const categories = await Product.aggregate([
