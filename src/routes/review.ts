@@ -1,14 +1,62 @@
 import { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { Review } from "../models/review";
 import { verifyAdmin } from "../middleware/auth";
+import cloudinary from "../utils/cloudinary";
 
 const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   fastify.post("/reviews", { preHandler: verifyAdmin }, async (req, reply) => {
     try {
-      const review = new Review(req.body);
+      const parts = (req as any).parts?.();
+      const fields: Record<string, any> = {};
+      let imageBuffer: Buffer | null = null;
+
+      // Collect all parts
+      for await (const part of parts) {
+        if (part.file) {
+          if (part.fieldname === "image") {
+            imageBuffer = await part.toBuffer();
+          }
+        } else {
+          // Store the value directly
+          fields[part.fieldname] = part.value;
+        }
+      }
+
+      // Upload image if provided
+      let imageUrl: string | undefined;
+      if (imageBuffer) {
+        imageUrl = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "happy-embroji/reviews" },
+            (err, result) => {
+              if (err || !result) reject(err);
+              else resolve(result.secure_url);
+            }
+          );
+          stream.end(imageBuffer);
+        });
+      }
+
+      // Prepare review data with proper type conversion
+      const reviewData: any = {
+        type: fields.type,
+        message: fields.message,
+      };
+
+      // Add optional fields if they exist
+      if (fields.platform) reviewData.platform = fields.platform;
+      if (fields.authorName) reviewData.authorName = fields.authorName;
+      if (fields.rating) reviewData.rating = Number(fields.rating);
+      if (fields.productId) reviewData.productId = fields.productId;
+      if (imageUrl) reviewData.imageUrl = imageUrl;
+
+      // Create and save review
+      const review = new Review(reviewData);
       const saved = await review.save();
+
       reply.code(201).send(saved);
     } catch (err: any) {
+      console.error("Error creating review:", err);
       reply.code(500).send({ error: err.message });
     }
   });
