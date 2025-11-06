@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-  backend:
+  happy-backend:
     build:
       context: .
       dockerfile: Dockerfile
@@ -12,8 +12,8 @@ services:
       - .env
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`happy-backend.dev.aritraghorai.in`)"
-      - "traefik.http.services.backend.loadbalancer.server.port=8021"
+      - "traefik.http.routers.happy-backend.rule=Host(`happy-backend.dev.aritraghorai.in`)"
+      - "traefik.http.services.happy-backend.loadbalancer.server.port=8021"
     # environment:
     #   # default MONGO_URI for local compose networking
     #   - MONGO_URI=mongodb://mongo:27017/happy-emborji
