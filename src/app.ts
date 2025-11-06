@@ -7,6 +7,7 @@ import productRoutes from "./routes/product";
 import categoryRoutes from "./routes/categories";
 import adminRoutes from "./routes/admin";
 import tagRoutes from "./routes/tag";
+import reviewRoutes from "./routes/review";
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ const start = async () => {
   fastify.register(categoryRoutes, { prefix: "/api" });
   fastify.register(adminRoutes, { prefix: "/api" });
   fastify.register(tagRoutes, { prefix: "/api" });
+  fastify.register(reviewRoutes, { prefix: "/api" });
 
   fastify.get("/", async () => ({ status: "Backend running 🚀" }));
 
