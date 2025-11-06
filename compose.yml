@@ -12,7 +12,7 @@ services:
       - .env
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`happy-embroji-backend.dev.aritraghorai.in`)"
+      - "traefik.http.routers.backend.rule=Host(`happy_backend.dev.aritraghorai.in`)"
       - "traefik.http.services.backend.loadbalancer.server.port=8021"
       - "traefik.http.middlewares.backend-redirect.redirectscheme.scheme=https"
     # environment:
