@@ -10,19 +10,16 @@ const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       const fields: Record<string, any> = {};
       let imageBuffer: Buffer | null = null;
 
-      // Collect all parts
       for await (const part of parts) {
         if (part.file) {
           if (part.fieldname === "image") {
             imageBuffer = await part.toBuffer();
           }
         } else {
-          // Store the value directly
           fields[part.fieldname] = part.value;
         }
       }
 
-      // Upload image if provided
       let imageUrl: string | undefined;
       if (imageBuffer) {
         imageUrl = await new Promise((resolve, reject) => {
@@ -37,20 +34,17 @@ const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         });
       }
 
-      // Prepare review data with proper type conversion
       const reviewData: any = {
         type: fields.type,
         message: fields.message,
       };
 
-      // Add optional fields if they exist
       if (fields.platform) reviewData.platform = fields.platform;
       if (fields.authorName) reviewData.authorName = fields.authorName;
       if (fields.rating) reviewData.rating = Number(fields.rating);
       if (fields.productId) reviewData.productId = fields.productId;
       if (imageUrl) reviewData.imageUrl = imageUrl;
 
-      // Create and save review
       const review = new Review(reviewData);
       const saved = await review.save();
 
