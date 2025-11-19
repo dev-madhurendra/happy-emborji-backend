@@ -187,6 +187,17 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       }
     }
   );
+
+  fastify.get("/products/search", async (req, reply) => {
+    const { q } = req.query as { q?: string };
+    if (!q) return reply.send([]);
+
+    const products = await Product.find({
+      name: { $regex: q, $options: "i" },
+    }).select("_id name");
+
+    reply.send(products);
+  });
 };
 
 export default productRoutes;

@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { Review } from "../models/review";
 import { verifyAdmin } from "../middleware/auth";
 import cloudinary from "../utils/cloudinary";
+import mongoose from "mongoose";
 
 const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   fastify.post("/reviews", { preHandler: verifyAdmin }, async (req, reply) => {
@@ -20,6 +21,14 @@ const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         }
       }
 
+      if (!fields.productId) {
+        return reply.code(400).send({ error: "productId is required" });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(fields.productId)) {
+        return reply.code(400).send({ error: "Invalid productId" });
+      }
+
       let imageUrl: string | undefined;
       if (imageBuffer) {
         imageUrl = await new Promise((resolve, reject) => {
@@ -34,16 +43,15 @@ const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         });
       }
 
-      const reviewData: any = {
+      const reviewData = {
         type: fields.type,
         message: fields.message,
+        platform: fields.platform,
+        authorName: fields.authorName,
+        rating: fields.rating ? Number(fields.rating) : undefined,
+        productId: new mongoose.Types.ObjectId(fields.productId),
+        imageUrl,
       };
-
-      if (fields.platform) reviewData.platform = fields.platform;
-      if (fields.authorName) reviewData.authorName = fields.authorName;
-      if (fields.rating) reviewData.rating = Number(fields.rating);
-      if (fields.productId) reviewData.productId = fields.productId;
-      if (imageUrl) reviewData.imageUrl = imageUrl;
 
       const review = new Review(reviewData);
       const saved = await review.save();
@@ -120,7 +128,7 @@ const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
           rating: number;
           message: string;
           imageUrl: string;
-          //   productId: mongoose.Types.ObjectId;
+          productId: mongoose.Types.ObjectId;
         }>;
 
         const body = req.body as ReviewUpdate;
@@ -149,6 +157,43 @@ const reviewRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         return reply.code(404).send({ message: "Review not found" });
       reply.send({ message: "Review deleted successfully" });
     } catch (err: any) {
+      reply.code(500).send({ error: err.message });
+    }
+  });
+
+  fastify.get("/reviews/product/:productId", async (req, reply) => {
+    try {
+      const { productId } = req.params as { productId: string };
+      const { page = "1", limit = "10" } = req.query as {
+        page?: string;
+        limit?: string;
+      };
+
+      const pageNum = Math.max(1, parseInt(page));
+      const limitNum = Math.max(1, Math.min(50, parseInt(limit)));
+      const skip = (pageNum - 1) * limitNum;
+
+      const filter = { productId };
+
+      const [reviews, totalReviews] = await Promise.all([
+        Review.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum),
+        Review.countDocuments(filter),
+      ]);
+
+      const totalPages = Math.ceil(totalReviews / limitNum);
+
+      reply.send({
+        reviews,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          totalReviews,
+          totalPages,
+          hasNextPage: pageNum < totalPages,
+        },
+      });
+    } catch (err: any) {
+      console.error("Error fetching reviews:", err);
       reply.code(500).send({ error: err.message });
     }
   });
