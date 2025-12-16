@@ -14,21 +14,21 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       try {
         const parts = (req as any).parts?.();
         const fields: Record<string, any> = {};
-        const buffers: { image: Buffer | null; images: Buffer[] } = {
-          image: null,
-          images: [],
-        };
+        const imageBuffers: Buffer[] = [];
 
+        // Parse incoming fields + files
         for await (const part of parts) {
           if (part.file) {
             const buffer = await part.toBuffer();
-            if (part.fieldname === "image") buffers.image = buffer;
-            else if (part.fieldname === "images") buffers.images.push(buffer);
+            if (part.fieldname === "images") {
+              imageBuffers.push(buffer); // ONLY multiple images
+            }
           } else {
             fields[part.fieldname] = part.value;
           }
         }
 
+        // Upload helper
         const uploadToCloudinary = (fileBuffer: Buffer): Promise<string> =>
           new Promise((resolve, reject) => {
             const stream = cloudinary.uploader.upload_stream(
@@ -41,23 +41,25 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
             stream.end(fileBuffer);
           });
 
-        const mainImageUrl = buffers.image
-          ? await uploadToCloudinary(buffers.image)
-          : null;
-        const additionalImageUrls = await Promise.all(
-          buffers.images.map((b) => uploadToCloudinary(b))
+        // Upload all images
+        const imageUrls = await Promise.all(
+          imageBuffers.map((buffer) => uploadToCloudinary(buffer))
         );
 
+        // Save product
         const product = new Product({
           ...fields,
-          image: mainImageUrl,
-          images: additionalImageUrls,
+          images: imageUrls, // store ONLY images[]
         });
 
         await product.save();
 
         cache.del("categories");
-        reply.code(201).send({ message: "Product added", product });
+
+        reply.code(201).send({
+          message: "Product added successfully",
+          product,
+        });
       } catch (err: any) {
         reply.code(500).send({ error: err.message });
       }
@@ -145,7 +147,6 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
           price: number;
           category: string;
           tag: string;
-          image: string;
           description: string;
           images: string[];
         }>;
