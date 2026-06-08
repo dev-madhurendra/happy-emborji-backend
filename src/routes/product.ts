@@ -36,14 +36,14 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
               (err, result) => {
                 if (err || !result) reject(err);
                 else resolve(result.secure_url);
-              }
+              },
             );
             stream.end(fileBuffer);
           });
 
         // Upload all images
         const imageUrls = await Promise.all(
-          imageBuffers.map((buffer) => uploadToCloudinary(buffer))
+          imageBuffers.map((buffer) => uploadToCloudinary(buffer)),
         );
 
         // Save product
@@ -63,7 +63,7 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       } catch (err: any) {
         reply.code(500).send({ error: err.message });
       }
-    }
+    },
   );
 
   fastify.get("/products", async (req, reply) => {
@@ -142,16 +142,53 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     async (req, reply) => {
       try {
         const { id } = req.params as { id: string };
-        const body = req.body as Partial<{
-          name: string;
-          price: number;
-          category: string;
-          tag: string;
-          description: string;
-          images: string[];
-        }>;
 
-        const updatedProduct = await Product.findByIdAndUpdate(id, body, {
+        // 1. Re-use the multipart stream parser
+        const parts = (req as any).parts?.();
+        if (!parts) {
+          return reply
+            .status(400)
+            .send({ error: "Expected multipart form-data" });
+        }
+
+        const fields: Record<string, any> = {};
+        const imageBuffers: Buffer[] = [];
+
+        for await (const part of parts) {
+          if (part.file) {
+            const buffer = await part.toBuffer();
+            if (part.fieldname === "images") {
+              imageBuffers.push(buffer);
+            }
+          } else {
+            fields[part.fieldname] = part.value;
+          }
+        }
+
+        // 2. Upload new images if any are provided
+        if (imageBuffers.length > 0) {
+          const uploadToCloudinary = (fileBuffer: Buffer): Promise<string> =>
+            new Promise((resolve, reject) => {
+              const stream = cloudinary.uploader.upload_stream(
+                { folder: "happy-embroji" },
+                (err, result) => {
+                  if (err || !result) reject(err);
+                  else resolve(result.secure_url);
+                },
+              );
+              stream.end(fileBuffer);
+            });
+
+          const newImageUrls = await Promise.all(
+            imageBuffers.map((buffer) => uploadToCloudinary(buffer)),
+          );
+
+          // Either replace the images array or push to it based on your frontend logic
+          fields.images = newImageUrls;
+        }
+
+        // 3. Update database
+        const updatedProduct = await Product.findByIdAndUpdate(id, fields, {
           new: true,
           runValidators: true,
         });
@@ -159,6 +196,8 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         if (!updatedProduct) {
           return reply.status(404).send({ error: "Product not found" });
         }
+
+        cache.del("categories");
 
         return reply.status(200).send({
           message: "Product updated successfully",
@@ -168,7 +207,7 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         fastify.log.error(err);
         return reply.status(500).send({ error: err.message });
       }
-    }
+    },
   );
 
   fastify.delete(
@@ -186,7 +225,7 @@ const productRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       } catch (err: any) {
         reply.code(500).send({ error: err.message });
       }
-    }
+    },
   );
 
   fastify.get("/products/search", async (req, reply) => {
